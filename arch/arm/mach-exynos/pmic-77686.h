@@ -323,6 +323,7 @@ static struct regulator_init_data max77686_ldo5_data = {
 		.min_uV		= 1800000,
 		.max_uV		= 1800000,
 		.apply_uV	= 1,
+		.boot_on	= 1,
 		.always_on	= 1,
 		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 		.state_mem	= {
@@ -523,6 +524,7 @@ static struct regulator_init_data max77686_ldo14_data = {
 		.min_uV		= 1800000,
 		.max_uV		= 1800000,
 		.apply_uV	= 1,
+		.boot_on	= 1,
 		.always_on	= 1,
 		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
 		.state_mem	= {
@@ -870,18 +872,18 @@ static struct regulator_init_data max77686_ldo26_data = {
 
 ////-----------------------------------------------------------------------------------
 ////-----------------------------------------------------------------------------------
-static struct regulator_init_data max77686_32KHz_AP_data = {
-	.constraints	= {
-		.name		= "EN32KHz AP",
-		.always_on	= 1,
-	},
-};
-static struct regulator_init_data max77686_32KHz_CP_data = {
-	.constraints	= {
-		.name		= "EN32KHz CP",
-		.always_on	= 1,
-	},
-};
+// static struct regulator_init_data max77686_32KHz_AP_data = {
+// 	.constraints	= {
+// 		.name		= "EN32KHz AP",
+// 		.always_on	= 1,
+// 	},
+// };
+// static struct regulator_init_data max77686_32KHz_CP_data = {
+// 	.constraints	= {
+// 		.name		= "EN32KHz CP",
+// 		.always_on	= 1,
+// 	},
+// };
 
 
 //-----------------------------------------------------------------------------------

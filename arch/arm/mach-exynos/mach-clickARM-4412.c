@@ -177,7 +177,7 @@ static struct mpu_platform_data gyro_platform_data = {
 };
 #endif
 
-/*USB 3505 SMC CCOnfiguration*/
+/*USB 3505 SMC Configuration*/
 #if defined(CONFIG_USB_HSIC_USB3503)
 static struct usb3503_platform_data usb3503_pdata = {
 	.initial_mode	= 	USB3503_MODE_HUB,
@@ -249,7 +249,8 @@ static struct max98090_pdata max98090 = {
 /*Devices Conected on I2C BUS 0 LISTED ABOVE*/
 static struct i2c_board_info clickarm4412_i2c_devs0[] __initdata = {
 	{
-		I2C_BOARD_INFO("max77686", (0x12 >> 1)),
+		I2C_BOARD_INFO("max77686", (0x12 >> 1)), 
+		//I2C_BOARD_INFO("max77686", (0x09)), // es el 0x09 para escribir y el 0x07 para leer
 		.platform_data	= &exynos4_max77686_info,
 	},
 #if defined(CONFIG_USB_HSIC_USB3503)
@@ -355,14 +356,14 @@ static struct i2c_board_info clickarm4412_i2c_devs4[] __initdata = {
 		.platform_data  = &ds278x_pdata,
 	},
 #endif
-#if defined(CONFIG_FAN54040)
-/**/
-	{
-		I2C_BOARD_INFO("fan54040", 0x6B),
-		.platform_data  = &tsc2007_info,
-		.irq		= VELO_FAN_INT,/*xeint8 // GPM3CON0 CHAGE STATUS // GPM3CON1 DISABLE CHARGE*/
-	},
-#endif
+// #if defined(CONFIG_FAN54040)
+// /**/
+// 	{
+// 		I2C_BOARD_INFO("fan54040", 0x6B), 
+// 		.platform_data  = &tsc2007_info,  // esto esta bien??
+// 		.irq		= VELO_FAN_INT,/*xeint8 // GPM3CON0 CHAGE STATUS // GPM3CON1 DISABLE CHARGE*/
+// 	},
+// #endif
 #if defined(CONFIG_SENSOR_MPU9250)
 	{
 	     I2C_BOARD_INFO("mpu9250", 0x68),
@@ -519,8 +520,8 @@ static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
 			.right_margin 	= 9,
 			.upper_margin 	= 5,
 			.lower_margin 	= 5,
-			.hsync_len 	= 2,
-			.vsync_len 	= 2,
+			.hsync_len 	= 1,
+			.vsync_len 	= 1,
 			.xres 		= 240,
 			.yres 		= 400,
 		},
@@ -685,6 +686,110 @@ static void __init clickarm4412_usbswitch_init(void)
 	s5p_usbswitch_set_platdata(pdata);
 }
 #endif
+
+/* #ifdef CONFIG_clickarm4412_WL12XX
+
+static void wl12xx_set_power(int index, bool power_on)
+{
+	static bool power_state;
+
+	pr_debug("Powering %s wl12xx", power_on ? "on" : "off");
+
+	if (power_on == power_state)
+		return;
+	power_state = power_on;
+
+	if (power_on) {
+	// Power up sequence required for wl127x devices 
+		gpio_set_value(clickarm4412_WLAN_EN, 1);
+		usleep_range(15000, 15000);
+		gpio_set_value(clickarm4412_WLAN_EN, 0);
+		usleep_range(1000, 1000);
+		gpio_set_value(clickarm4412_WLAN_EN, 1);
+		msleep(70);
+	} else {
+		gpio_set_value(clickarm4412_WLAN_EN, 0);
+	}
+}
+
+static struct davinci_mmc_config clickarm4412_wl12xx_mmc_config = {
+	.set_power	= wl12xx_set_power,
+	.wires		= 4,
+	.max_freq	= 25000000,
+	.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_NONREMOVABLE |
+			  MMC_CAP_POWER_OFF_CARD,
+	.version	= MMC_CTLR_VERSION_2,
+};
+
+static const short clickarm4412_wl12xx_pins[] __initconst = {
+	clickarm4412_MMCSD1_DAT_0, clickarm4412_MMCSD1_DAT_1, clickarm4412_MMCSD1_DAT_2,
+	clickarm4412_MMCSD1_DAT_3, clickarm4412_MMCSD1_CLK, clickarm4412_MMCSD1_CMD,
+	clickarm4412_GPIO6_9, clickarm4412_GPIO6_10,
+	-1
+};
+
+static struct wl12xx_platform_data clickarm4412_wl12xx_wlan_data __initdata = {
+	.irq			= -1,
+	.board_ref_clock	= WL12XX_REFCLOCK_38,
+	.platform_quirks	= WL12XX_PLATFORM_QUIRK_EDGE_IRQ,
+};
+
+static __init int clickarm4412_wl12xx_init(void)
+{
+	int ret;
+
+	ret = davinci_cfg_reg_list(clickarm4412_wl12xx_pins);
+	if (ret) {
+		pr_err("wl12xx/mmc mux setup failed: %d\n", ret);
+		goto exit;
+	}
+
+	ret = clickarm4412_register_mmcsd1(&clickarm4412_wl12xx_mmc_config);
+	if (ret) {
+		pr_err("wl12xx/mmc registration failed: %d\n", ret);
+		goto exit;
+	}
+
+	ret = gpio_request_one(clickarm4412_WLAN_EN, GPIOF_OUT_INIT_LOW, "wl12xx_en");
+	if (ret) {
+		pr_err("Could not request wl12xx enable gpio: %d\n", ret);
+		goto exit;
+	}
+
+	ret = gpio_request_one(clickarm4412_WLAN_IRQ, GPIOF_IN, "wl12xx_irq");
+	if (ret) {
+		pr_err("Could not request wl12xx irq gpio: %d\n", ret);
+		goto free_wlan_en;
+	}
+
+	clickarm4412_wl12xx_wlan_data.irq = gpio_to_irq(clickarm4412_WLAN_IRQ);
+
+	ret = wl12xx_set_platform_data(&clickarm4412_wl12xx_wlan_data);
+	if (ret) {
+		pr_err("Could not set wl12xx data: %d\n", ret);
+		goto free_wlan_irq;
+	}
+
+	return 0;
+
+free_wlan_irq:
+	gpio_free(clickarm4412_WLAN_IRQ);
+
+free_wlan_en:
+	gpio_free(clickarm4412_WLAN_EN);
+
+exit:
+	return ret;
+}
+
+#else // CONFIG_clickarm4412_WL12XX 
+
+static __init int clickarm4412_wl12xx_init(void)
+{
+	return 0;
+}
+
+#endif /* CONFIG_clickarm4412_WL12XX */
 
 /* SDCARD */
 static struct s3c_sdhci_platdata clickarm4412_hsmmc2_pdata __initdata = {
@@ -1045,82 +1150,84 @@ static void __init clickarm4412_gpio_init(void)
 
 	/* Power on/off button */
 	s3c_gpio_cfgpin(EXYNOS4X12_GPM3(7), S3C_GPIO_SFN(0xF));	/* VELO SIDE BUTTON TR POWERON */
-	s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_NONE);
+	s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_UP);
 	
 	/* TR/TL */
 	gpio_request_one(EXYNOS4_GPF2(5), GPIOF_IN, "TL");
-        s3c_gpio_cfgpin(EXYNOS4_GPF2(5), S3C_GPIO_INPUT );
-        s3c_gpio_setpull(EXYNOS4_GPF2(5), S3C_GPIO_PULL_UP);
+	s3c_gpio_cfgpin(EXYNOS4_GPF2(5), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4_GPF2(5), S3C_GPIO_PULL_UP);
 	gpio_free(EXYNOS4_GPF2(5));
 
 	gpio_request_one(EXYNOS4X12_GPM3(7), GPIOF_IN, "TR");
-        s3c_gpio_cfgpin(EXYNOS4X12_GPM3(7), S3C_GPIO_INPUT );
-        s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_UP);
-        gpio_free(EXYNOS4X12_GPM3(7));
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM3(7), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_UP);
+	gpio_free(EXYNOS4X12_GPM3(7));
 
 	/* BR/BL */
-        gpio_request_one(EXYNOS4_GPJ0(1), GPIOF_IN, "BR");
-        s3c_gpio_cfgpin(EXYNOS4_GPJ0(1), S3C_GPIO_INPUT );
-        s3c_gpio_setpull(EXYNOS4_GPJ0(1), S3C_GPIO_PULL_UP);
-        gpio_free(EXYNOS4_GPJ0(1));
+	gpio_request_one(EXYNOS4_GPJ0(1), GPIOF_IN, "BR");
+	s3c_gpio_cfgpin(EXYNOS4_GPJ0(1), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4_GPJ0(1), S3C_GPIO_PULL_UP);
+	gpio_free(EXYNOS4_GPJ0(1));
 
-	gpio_request_one(EXYNOS4_GPJ1(1), GPIOF_IN, "BL");  //modificado
-        s3c_gpio_cfgpin(EXYNOS4_GPJ1(1), S3C_GPIO_INPUT );
-        s3c_gpio_setpull(EXYNOS4_GPJ1(1), S3C_GPIO_PULL_UP);
-        gpio_free(EXYNOS4_GPJ1(1));
+	gpio_request_one(EXYNOS4_GPJ1(1), GPIOF_IN, "BL");  
+	s3c_gpio_cfgpin(EXYNOS4_GPJ1(1), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4_GPJ1(1), S3C_GPIO_PULL_UP);
+	gpio_free(EXYNOS4_GPJ1(1));
 
 /*********************************************************************/
-/*				WIFI MDULE CONFIGURATION									 */
+/*				WIFI MODULE CONFIGURATION	     					 */
 /*********************************************************************/
+    /*CLK source for Wireless module activation?  */
+
 	/* WLAN_EN */	
 	gpio_request_one(EXYNOS4_GPJ1(4), GPIOF_OUT_INIT_LOW, "WLAN_EN");
-        s3c_gpio_cfgpin(EXYNOS4_GPJ1(4), S3C_GPIO_OUTPUT );
-        s3c_gpio_setpull(EXYNOS4_GPJ1(4), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4_GPJ1(4));
+	s3c_gpio_cfgpin(EXYNOS4_GPJ1(4), S3C_GPIO_OUTPUT );
+	s3c_gpio_setpull(EXYNOS4_GPJ1(4), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4_GPJ1(4));
 	/* BT_EN */	
 	gpio_request_one(EXYNOS4_GPJ0(6), GPIOF_OUT_INIT_LOW, "BT_EN");
-        s3c_gpio_cfgpin(EXYNOS4_GPJ0(6), S3C_GPIO_OUTPUT );
-        s3c_gpio_setpull(EXYNOS4_GPJ0(6), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4_GPJ0(6));
+	s3c_gpio_cfgpin(EXYNOS4_GPJ0(6), S3C_GPIO_OUTPUT );
+	s3c_gpio_setpull(EXYNOS4_GPJ0(6), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4_GPJ0(6));
 /*********************************************************************/
 /*				GPS CONFIGURATION									 */
 /*********************************************************************/
-     /* GPS PowerON/OFF */
-    gpio_request_one(EXYNOS4X12_GPM4(2), GPIOF_OUT_INIT_LOW, "GPS_PON");
-        s3c_gpio_cfgpin(EXYNOS4X12_GPM4(2), S3C_GPIO_OUTPUT );
-        s3c_gpio_setpull(EXYNOS4X12_GPM4(2), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4X12_GPM4(2));
+    /* GPS PowerON/OFF */
+	gpio_request_one(EXYNOS4X12_GPM4(2), GPIOF_OUT_INIT_LOW, "GPS_PON");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM4(2), S3C_GPIO_OUTPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM4(2), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM4(2));
 
-        /* GPS Status */
-     gpio_request_one(EXYNOS4X12_GPM4(5), GPIOF_IN, "GPS_STATUS");
-           s3c_gpio_cfgpin(EXYNOS4X12_GPM4(5), S3C_GPIO_INPUT );
-           s3c_gpio_setpull(EXYNOS4X12_GPM4(5), S3C_GPIO_PULL_NONE);
-           gpio_free(EXYNOS4X12_GPM4(5));
+    /* GPS Status */
+	gpio_request_one(EXYNOS4X12_GPM4(5), GPIOF_IN, "GPS_STATUS");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM4(5), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM4(5), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM4(5));
 
-           /* GPS Reset */
-     gpio_request_one(EXYNOS4X12_GPM1(3), GPIOF_IN, "GPS_RESET");
-            s3c_gpio_cfgpin(EXYNOS4X12_GPM1(3), S3C_GPIO_INPUT );   
-            s3c_gpio_setpull(EXYNOS4X12_GPM1(3), S3C_GPIO_PULL_NONE);
-            gpio_free(EXYNOS4X12_GPM1(3));
+    /* GPS Reset */
+	gpio_request_one(EXYNOS4X12_GPM1(3), GPIOF_IN, "GPS_RESET");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM1(3), S3C_GPIO_INPUT );   
+	s3c_gpio_setpull(EXYNOS4X12_GPM1(3), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM1(3));
 
 /*********************************************************************/
 /*				GPRS CONFIGURATION									 */
 /*********************************************************************/
-        /* GPRS PowerON/OFF */
-     gpio_request_one(EXYNOS4X12_GPM1(1), GPIOF_OUT_INIT_LOW, "GPRS_PON");
-        s3c_gpio_cfgpin(EXYNOS4X12_GPM1(1), S3C_GPIO_OUTPUT );
-        s3c_gpio_setpull(EXYNOS4X12_GPM1(1), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4X12_GPM1(1));
-        /* GPRS STATUS*/
-     gpio_request_one(EXYNOS4X12_GPM1(6), GPIOF_IN, "GPRS_STATUS");
-        s3c_gpio_cfgpin(EXYNOS4X12_GPM1(6), S3C_GPIO_INPUT );
-        s3c_gpio_setpull(EXYNOS4X12_GPM1(6), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4X12_GPM1(6));
-                /* GPRS PWRKEY*/
-     gpio_request_one(EXYNOS4X12_GPM0(4), GPIOF_OUT_INIT_LOW, "GPRS_PWRKEY");
-        s3c_gpio_cfgpin(EXYNOS4X12_GPM0(4), S3C_GPIO_OUTPUT );
-        s3c_gpio_setpull(EXYNOS4X12_GPM0(4), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4X12_GPM0(4));
+    /* GPRS PowerON/OFF */
+	gpio_request_one(EXYNOS4X12_GPM1(1), GPIOF_OUT_INIT_LOW, "GPRS_PON");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM1(1), S3C_GPIO_OUTPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM1(1), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM1(1));
+    /* GPRS STATUS*/
+	gpio_request_one(EXYNOS4X12_GPM1(6), GPIOF_IN, "GPRS_STATUS");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM1(6), S3C_GPIO_INPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM1(6), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM1(6));
+    /* GPRS PWRKEY*/
+	gpio_request_one(EXYNOS4X12_GPM0(4), GPIOF_OUT_INIT_LOW, "GPRS_PWRKEY");
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM0(4), S3C_GPIO_OUTPUT );
+	s3c_gpio_setpull(EXYNOS4X12_GPM0(4), S3C_GPIO_PULL_NONE);
+	gpio_free(EXYNOS4X12_GPM0(4));
 
 }
 
@@ -1166,7 +1273,7 @@ static void __init clickarm4412_machine_init(void)
 	s3c_i2c0_set_platdata(NULL);
 	i2c_register_board_info(0, clickarm4412_i2c_devs0,
 				ARRAY_SIZE(clickarm4412_i2c_devs0));
-
+	
 	s3c_i2c1_set_platdata(NULL);
 
 	i2c_register_board_info(1, clickarm4412_i2c_devs1,
@@ -1184,6 +1291,7 @@ static void __init clickarm4412_machine_init(void)
 	
 	gpio_set_value(EXYNOS4_GPJ1(4), 0);
 	gpio_set_value(EXYNOS4_GPJ0(6), 0);
+
 #if defined(CONFIG_CLICKARM_OTHERS)
 //	i2c_register_board_info(4, clickarm4412_i2c_devs4,
 //				ARRAY_SIZE(clickarm4412_i2c_devs4));
