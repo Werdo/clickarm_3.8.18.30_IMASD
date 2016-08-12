@@ -1,0 +1,54 @@
+In file included from scripts/sortextable.c:162:0:
+scripts/sortextable.c: In function ‘main’:
+scripts/sortextable.h:158:3: warning: ‘relocs_size’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   memset(relocs, 0, relocs_size);
+   ^
+scripts/sortextable.h:104:6: note: ‘relocs_size’ was declared here
+  int relocs_size;
+      ^
+In file included from scripts/sortextable.c:160:0:
+scripts/sortextable.h:158:3: warning: ‘relocs_size’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+   memset(relocs, 0, relocs_size);
+   ^
+scripts/sortextable.h:104:6: note: ‘relocs_size’ was declared here
+  int relocs_size;
+      ^
+WARNING: drivers/video/built-in.o(.data+0x22c): Section mismatch in reference from the variable t55149gd030j_driver to the function .init.text:t55149gd030j_probe()
+The variable t55149gd030j_driver references
+the function __init t55149gd030j_probe()
+If the reference is valid then annotate the
+variable with __init* or __refdata (see linux/init.h) or name the variable:
+*_template, *_timer, *_sht, *_ops, *_probe, *_probe_one, *_console
+
+arch/arm/mach-exynos/mach-clickARM-4412.c: In function ‘fan54_chr_init’:
+arch/arm/mach-exynos/mach-clickARM-4412.c:76:25: error: implicit declaration of function ‘EXYNOS4212_GPM3’ [-Werror=implicit-function-declaration]
+ #define VELO_FAN_INT    EXYNOS4212_GPM3(0) /*IRQ XEINT8*/
+                         ^
+arch/arm/mach-exynos/mach-clickARM-4412.c:140:15: note: in expansion of macro ‘VELO_FAN_INT’
+  gpio_request(VELO_FAN_INT, "FAN54_INT");
+               ^
+arch/arm/mach-exynos/mach-clickARM-4412.c:143:1: warning: no return statement in function returning non-void [-Wreturn-type]
+ }
+ ^
+arch/arm/mach-exynos/mach-clickARM-4412.c: At top level:
+arch/arm/mach-exynos/mach-clickARM-4412.c:793:8: warning: "/*" within comment [-Wcomment]
+ #endif /* CONFIG_clickarm4412_WL12XX */
+        ^
+arch/arm/mach-exynos/mach-clickARM-4412.c:830:16: warning: initialization from incompatible pointer type [-Wincompatible-pointer-types]
+  .cfg_gpio   = exynos4_setup_dwmci_cfg_gpio,
+                ^
+arch/arm/mach-exynos/mach-clickARM-4412.c:830:16: note: (near initialization for ‘clickarm4412_dwmci_pdata.cfg_gpio’)
+arch/arm/mach-exynos/mach-clickARM-4412.c:137:12: warning: ‘fan54_chr_init’ defined but not used [-Wunused-function]
+ static int fan54_chr_init(void)
+            ^
+cc1: some warnings being treated as errors
+make[1]: *** [arch/arm/mach-exynos/mach-clickARM-4412.o] Error 1
+make: *** [arch/arm/mach-exynos] Error 2
+make: *** Se espera a que terminen otras tareas....
+WARNING: drivers/built-in.o(.data+0x1820): Section mismatch in reference from the variable t55149gd030j_driver to the function .init.text:t55149gd030j_probe()
+The variable t55149gd030j_driver references
+the function __init t55149gd030j_probe()
+If the reference is valid then annotate the
+variable with __init* or __refdata (see linux/init.h) or name the variable:
+*_template, *_timer, *_sht, *_ops, *_probe, *_probe_one, *_console
+
