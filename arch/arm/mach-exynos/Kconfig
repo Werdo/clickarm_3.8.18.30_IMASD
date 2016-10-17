@@ -499,6 +499,7 @@ config MACH_CLICKARM4412
 	select EXYNOS4_SETUP_DWMCI
 	select SAMSUNG_DEV_ADC
 	select EXYNOS_SETUP_SPI
+	select DEBUG_SECTION_MISMATCH
 	help
 	  Machine support for CLICKARMs based on Samsung EXYNOS4412
 

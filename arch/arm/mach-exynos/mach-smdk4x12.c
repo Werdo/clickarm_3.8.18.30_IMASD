@@ -35,7 +35,9 @@
 #include <plat/devs.h>
 #include <plat/fb.h>
 #include <plat/gpio-cfg.h>
+#if defined(CONFIG_EXYNOS4_SETUP_KEYPAD)
 #include <plat/keypad.h>
+#endif
 #include <plat/mfc.h>
 #include <plat/regs-serial.h>
 #include <plat/sdhci.h>
@@ -219,7 +221,7 @@ static struct samsung_bl_gpio_info smdk4x12_bl_gpio_info = {
 
 static struct platform_pwm_backlight_data smdk4x12_bl_data = {
 	.pwm_id = 1,
-	.pwm_period_ns  = 100,
+	.pwm_period_ns  = 1000,
 };
 
 static struct pwm_lookup smdk4x12_pwm_lookup[] = {
@@ -320,7 +322,9 @@ static struct platform_device *smdk4x12_devices[] __initdata = {
 	&s5p_device_mfc,
 	&s5p_device_mfc_l,
 	&s5p_device_mfc_r,
+#if defined(CONFIG_EXYNOS4_SETUP_KEYPAD)
 	&samsung_device_keypad,
+#endif
 };
 
 static void __init smdk4x12_map_io(void)
@@ -356,7 +360,9 @@ static void __init smdk4x12_machine_init(void)
 	samsung_bl_set(&smdk4x12_bl_gpio_info, &smdk4x12_bl_data);
 	pwm_add_table(smdk4x12_pwm_lookup, ARRAY_SIZE(smdk4x12_pwm_lookup));
 
+#if defined(CONFIG_EXYNOS4_SETUP_KEYPAD)
 	samsung_keypad_set_platdata(&smdk4x12_keypad_data);
+#endif
 
 	s3c_sdhci2_set_platdata(&smdk4x12_hsmmc2_pdata);
 	s3c_sdhci3_set_platdata(&smdk4x12_hsmmc3_pdata);
