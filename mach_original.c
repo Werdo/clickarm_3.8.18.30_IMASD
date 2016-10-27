@@ -32,7 +32,6 @@
 #include <linux/platform_data/usb-ehci-s5p.h>
 #include <linux/platform_data/usb-exynos.h>
 #include <linux/platform_data/usb3503.h>
-#include <linux/platform_data/tps611xx_bl.h>
 #include <linux/delay.h>
 #include <linux/lcd.h>
 #include <linux/clk.h>
@@ -70,8 +69,6 @@
 
 #include "common.h"
 #include "pmic-77686.h"
-
-extern int velo_version;
 
 /*VELO INCLUDES*/
 #include <linux/pwm_backlight.h>
@@ -128,9 +125,9 @@ static struct s3c2410_uartcfg clickarm4412_uartcfgs[] __initdata = {
 };
 
 /*DS2782 BATTERY FUEL GAUGE*/
-#if defined(CONFIG_BATTERY_DS2782)
+#if defined(CONFIG_BATTERY_DS2782) || defined(CONFIG_BATTERY_DS2782_MODULE)
 #include <linux/ds2782_battery.h>
-#define DS2786_RSNS    20 /* Constant sense resistor value */
+#define DS2786_RSNS    18 /* Constant sense resistor value */
 
 struct ds278x_platform_data ds278x_pdata = {
 	.rsns = DS2786_RSNS,
@@ -222,25 +219,18 @@ static void tsc2007_clear_penirq(void)
 	gpio_set_value(tsc2007_penirq_pin, 1);
 }
 
-// 2016-08-08 DNP TWON-13812: [#1] Ajustar umbral de resistencia a un valor mas bajo (max_rt)
-//				=> Cuando se pulsa flojo, los valores X, Y tienen mucho error
-//                            [#2] Aumentar control fuzz de los valores X, Y (fuzzx, fuzzy)
-//				=> Para evitar baile de X, Y debido a variaciones electricas en el touch
 struct tsc2007_platform_data tsc2007_info = {
 	.model 		= 2007,	/* 2007. */
 
-	.x_plate_ohms	= 265, /* must be non-zero value */
-	.y_plate_ohms	= 680, /* must be non-zero value */
-	/* max. resistance above which samples are ignored */
-	.max_rt		= 1200, // [#1] antes 1<<12
+	.x_plate_ohms	= 300, /* must be non-zero value */
+	.max_rt		= 1<<12, /* max. resistance above which samples are ignored */
 
-	.poll_delay	= 30, /* delay (in ms) after pen-down event
+	.poll_delay	= 5, /* delay (in ms) after pen-down event
 					     before polling starts */
 	.poll_period = 25,/* time (in ms) between samples */
 
-	/* fuzz factor for X, Y and pressure axes */
-	.fuzzx		= 256, // [#2] antes 64
-	.fuzzy		= 256, // [#2] antes 64
+	.fuzzx		= 64, 	/* fuzz factor for X, Y and pressure axes */
+	.fuzzy		= 64,
 	.fuzzz		= 64,
 
 	.get_pendown_state	= tsc2007_get_pendown_state,
@@ -250,19 +240,6 @@ struct tsc2007_platform_data tsc2007_info = {
 };
 #endif
 /*END OF touchscreen config tsc2007 XE_INT22*/
-
-static struct tps611xx_platform_data tps611xx_data = {
-	.rfa_en = 1,
-	.en_gpio_num = EXYNOS4_GPD0(2),
-};
-
-static struct platform_device tps611xx = {
-	.name	= "tps61165_bl",
-	.dev	= {
-		.platform_data	= &tps611xx_data,
-	},
-};
-
 /*Audio Codec MAX98090 Configuration*/
 #if defined(CONFIG_SND_SOC_MAX98090)
 #include <sound/max98090.h>
@@ -275,23 +252,6 @@ static struct max98090_pdata max98090 = {
 #endif
 
 /*END OF Audio Codec MAX98090 Configuration*/
-
-/*Ambient light sensor MAX44005 Configuration*/
-// static struct max44005_platform_data max44005_driver = {
-// 	.class	= I2C_CLASS_HWMON,
-// 	.driver  = {
-// 		.name = "max44005",
-// 		.owner = THIS_MODULE,
-// 		.of_match_table = of_match_ptr(max44005_of_match),
-// 		.pm = MAX44005_PM_OPS,
-// 	},
-// 	.probe	 = max44005_probe,
-// 	.shutdown = max44005_shutdown,
-// 	.remove  = max44005_remove,
-// 	.id_table = max44005_id,
-// };
-/*END OF Ambient light sensor MAX44005 Configuration*/
-
 /*Devices Conected on I2C BUS 0 LISTED ABOVE*/
 static struct i2c_board_info clickarm4412_i2c_devs0[] __initdata = {
 	{
@@ -340,10 +300,10 @@ static struct i2c_board_info clickarm4412_i2c_devs1[] __initdata = {
 //	},
 //#endif
 	/*UNCOMMENT WHEN READY*/
-#if defined(CONFIG_SENSORS_MAX44005)  // ambient light sensor 
+#if defined(CONFIG_MAX44005)
 	{
-		I2C_BOARD_INFO("max44005", 0x88), /*Write: 0x88 Read: 0x89*/
-		.platform_data  = &max44005_driver, /*CONFIG PDATA*/
+		I2C_BOARD_INFO("max44005", 0x44), /*CONFIG DIRECCTION SET DEFAULT*/
+		.platform_data  = &????????, /*CONFIG PDATA*/
 
 	},
 #endif
@@ -368,7 +328,7 @@ static struct 	platform_device 	gpio_device_i2c4 = {
 	.dev.platform_data = &i2c4_gpio_platdata,
 };
 static struct i2c_board_info clickarm4412_i2c_devs4[] __initdata = {
-#if defined(CONFIG_BATTERY_DS2782)
+#if defined(CONFIG_DS2782)
 	{
 		I2C_BOARD_INFO("ds2782", 0x34),
 		.platform_data  = &ds278x_pdata,
@@ -398,7 +358,7 @@ static struct samsung_bl_gpio_info clickarm4412_bl_gpio_info = {
 
 static struct platform_pwm_backlight_data clickarm4412_bl_data = {
 	.pwm_id = 1,
-	.pwm_period_ns  = 1000,
+	.pwm_period_ns  = 100,
 };
 
 static struct pwm_lookup clickarm4412_pwm_lookup[] = {
@@ -407,108 +367,86 @@ static struct pwm_lookup clickarm4412_pwm_lookup[] = {
 /* END OF LCD Backlight data tps611xx PWM_platform_data*/
 /*Define VELO display with DRM */
 #if defined(CONFIG_LCD_T55149GD030J) && defined(CONFIG_DRM_EXYNOS_FIMD)
-	#if defined(CONFIG_LCD_TM037WDHT01)
-		static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
-		.panel = {
-			.timing = {
-				.left_margin 	= 40,
-				.right_margin 	= 24,
-				.upper_margin 	= 7,
-				.lower_margin 	= 5,
-				.hsync_len 	= 32,
-				.vsync_len 	= 5,
-				.xres 		= 480,
-				.yres 		= 640,
-			},
+static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
+	.panel = {
+		.timing = {
+			.left_margin 	= 9,
+			.right_margin 	= 9,
+			.upper_margin 	= 5,
+			.lower_margin 	= 5,
+			.hsync_len 	= 1,
+			.vsync_len 	= 1,
+			.xres 		= 240,
+			.yres 		= 400,
 		},
-		.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
-		.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | VIDCON1_INV_VCLK,
-		.default_win 	= 0,
-		.bpp 		= 32,
-	};
-
-	#else
-		static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
-			.panel = {
-				.timing = {
-					.left_margin 	= 9,
-					.right_margin 	= 9,
-					.upper_margin 	= 5,
-					.lower_margin 	= 5,
-					.hsync_len 	= 1,
-					.vsync_len 	= 1,
-					.xres 		= 240,
-					.yres 		= 400,
-				},
-				.width_mm = 39,
-				.height_mm = 65,
-			},
-			.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
-			.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | 
-						  VIDCON1_INV_VCLK | VIDCON1_INV_VDEN,
-			.default_win 	= 0,
-			.bpp 		= 24,
-		};
-	#endif
-
-	static void lcd_t55149gd030j_set_power(struct plat_lcd_data *pd,
-					   unsigned int power)
-	{
-		if (power) {
-			gpio_set_value(EXYNOS4X12_GPM1(5),1);
-		} else {
-			gpio_set_value(EXYNOS4X12_GPM1(5),0);
-		}
-		gpio_free(EXYNOS4X12_GPM1(5));
-
+	},
+	.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
+	.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | 
+				  VIDCON1_INV_VCLK | VIDCON1_INV_VDEN,
+	.default_win 	= 0,
+	.bpp 		= 24,
+};
+	
+static void lcd_t55149gd030j_set_power(struct plat_lcd_data *pd,
+				   unsigned int power)
+{
+	if (power) {
+		gpio_set_value(EXYNOS4X12_GPM1(5),1);
+	} else {
+		gpio_set_value(EXYNOS4X12_GPM1(5),0);
 	}
+		gpio_free(EXYNOS4X12_GPM1(5));
+	
+}
 
-	static struct plat_lcd_data clickarm4412_lcd_t55149gd030j_data = {
-		.set_power	= lcd_t55149gd030j_set_power,
-		
-	};
+static struct plat_lcd_data clickarm4412_lcd_t55149gd030j_data = {
+	.set_power	= lcd_t55149gd030j_set_power,
+	
+};
 
-	static struct platform_device clickarm4412_lcd_t55149gd030j = {
-		.name	= "platform-lcd",
-		.dev	= {
-			.parent		= &s5p_device_fimd0.dev,
-			.platform_data	= &clickarm4412_lcd_t55149gd030j_data,
-		},
-	};
+static struct platform_device clickarm4412_lcd_t55149gd030j = {
+	.name	= "platform-lcd",
+	.dev	= {
+		.parent		= &s5p_device_fimd0.dev,
+		.platform_data	= &clickarm4412_lcd_t55149gd030j_data,
+	},
+};
 #endif
 /*END OF Define VELO display with DRM */
 
 /* GPIO KEYS KEYBOARD*/
 static struct gpio_keys_button clickarm4412_gpio_keys_tables[] = {
 	{
-		.code			= KEY_F1,
+		.code			= BTN_A,
 		.gpio			= EXYNOS4X12_GPM3(7),	/* VELO SIDE BUTTON TR POWERON */
 		.desc			= "KEY_POWER",
-		.type			= EV_KEY,
-		.active_low		= 0,
+		.type			= EV_SW,
+		.active_low		= 1,
+		.wakeup			= 1,
 	},
-	/* 2016-10-07 DNP Desactivamos el TL, no funciona bien
 	{
-		.code			= KEY_F2,
-		.gpio			= EXYNOS4_GPF2(5), // VELO SIDE BUTTON TL
+		.code			= BTN_B,
+		.gpio			= EXYNOS4_GPF2(5), /* VELO SIDE BUTTON TL */
 		.desc			= "TL_BUTTON",
-		.type			= EV_KEY,
+		.type			= EV_SW,
 		.active_low		= 1,
+		.wakeup			= 1,
 	},
-	*/
 	{
-		.code			= KEY_F3,
-		.gpio			= EXYNOS4_GPJ1(1), /* VELO FRONT BUTTON BR */
+		.code			= BTN_C,
+		.gpio			= EXYNOS4_GPJ0(1), /* VELO FRONT BUTTON BR */
 		.desc			= "BR_BUTTON",
-		.type			= EV_KEY,
-		.active_low		= 0,
+		.type			= EV_SW,
+		.active_low		= 1,
+		.wakeup			= 1,
 	},
 	{
-		.code			= KEY_F4,
-		.gpio			= EXYNOS4_GPJ0(1), /* VELO FRONT BUTTON BL */
+		.code			= BTN_X,
+		.gpio			= EXYNOS4_GPJ1(1), /* VELO FRONT BUTTON BL */
 		.desc			= "BL_BUTTON",
-		.type			= EV_KEY,
+		.type			= EV_SW,
 		.active_low		= 1,
+		.wakeup			= 1,
 	},
 };
 
@@ -523,30 +461,7 @@ static struct platform_device clickarm4412_gpio_keys = {
 		.platform_data	= &clickarm4412_gpio_keys_data,
 	},
 };
-
-void init_button_irqs(void)
-	{
-		/*
-			Number of irqs is limited by S5P_GPIOINT_GROUP_COUNT in arch/arm/plat-samsung/include/plat/irqs.h
-			Using s5p_register_gpio_interrupt(), 8 irqs are allocated (for the full 8 gpios of the chip), like defined in S5P_GPIOINT_GROUP_SIZE
-		*/
-
-		int numero_de_irq=-1;
-
-		numero_de_irq=s5p_register_gpio_interrupt(EXYNOS4X12_GPM3(7));
-		printk("clickarm4412_gpio_keys_tables: irq %d\n",numero_de_irq);
-
-		// 2016-10-07 DNP Desactivamos el TL, no funciona bien
-		//numero_de_irq=s5p_register_gpio_interrupt(EXYNOS4_GPF2(5));
-		//printk("clickarm4412_gpio_keys_tables: irq %d\n",numero_de_irq);
-
-		numero_de_irq=s5p_register_gpio_interrupt(EXYNOS4_GPJ0(1));
-		printk("clickarm4412_gpio_keys_tables: irq %d\n",numero_de_irq);
-
-		numero_de_irq=s5p_register_gpio_interrupt(EXYNOS4_GPJ1(1));
-		printk("clickarm4412_gpio_keys_tables: irq %d\n",numero_de_irq);
-	}
-/*END OF GPIO KEYS KEYBOARD*/ 		
+/*END OF GPIO KEYS KEYBOARD*/
 
 #if defined(CONFIG_SND_SOC_HKDK_MAX98090)
 static struct platform_device hardkernel_audio_device = {
@@ -636,7 +551,8 @@ static struct s3c_sdhci_platdata clickarm4412_hsmmc2_pdata __initdata = {
 /* WIFI SDIO */
 static struct s3c_sdhci_platdata clickarm4412_hsmmc3_pdata __initdata = {
 	.max_width		= 4,
-	.host_caps		= MMC_CAP_4_BIT_DATA,
+	.host_caps		= MMC_CAP_4_BIT_DATA |
+		MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED,
 	.cd_type		= S3C_SDHCI_CD_NONE,
 };
 
@@ -649,7 +565,7 @@ static struct wl12xx_platform_data clickarm4412_wl12xx_wlan_data __initdata = {
 /* DWMMC */
 static int clickarm4412_dwmci_get_bus_wd(u32 slot_id)
 {
-       return 4;
+       return 8;
 }
 
 static int clickarm4412_dwmci_init(u32 slot_id, irq_handler_t handler, void *data)
@@ -660,7 +576,7 @@ static int clickarm4412_dwmci_init(u32 slot_id, irq_handler_t handler, void *dat
 static struct dw_mci_board clickarm4412_dwmci_pdata = {
 	.num_slots			= 1,
 	.quirks				= DW_MCI_QUIRK_BROKEN_CARD_DETECTION | DW_MCI_QUIRK_HIGHSPEED,
-	.caps				= MMC_CAP_UHS_DDR50 | MMC_CAP_1_8V_DDR | MMC_CAP_4_BIT_DATA | MMC_CAP_CMD23,
+	.caps				= MMC_CAP_UHS_DDR50 | MMC_CAP_1_8V_DDR | MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
 	.fifo_depth			= 0x80,
 	.bus_hz				= 104 * 1000 * 1000,
 	.detect_delay_ms	= 200,
@@ -730,9 +646,9 @@ static int lcd_cfg_gpio(void)
 	
 	printk("lcd_cfg_gpio()***!!!!**********\n");	
 	/*Power control*/
-	gpio_free(EXYNOS4_GPD0(2));
-	gpio_request_one(EXYNOS4_GPD0(2), GPIOF_OUT_INIT_HIGH, "BACKLIGHT");
-	gpio_free(EXYNOS4_GPD0(2));
+	gpio_free(EXYNOS4X12_GPM1(5));
+	gpio_request_one(EXYNOS4X12_GPM1(5), GPIOF_OUT_INIT_HIGH, "GPM1");
+	gpio_free(EXYNOS4X12_GPM1(5));
 
 	/* LCD _CS */
 	gpio_free(EXYNOS4_GPB(5));
@@ -888,7 +804,6 @@ static struct platform_device clickarm_lcd_spi = {
 #endif
 
 static struct platform_device *clickarm4412_devices[] __initdata = {
-	&tps611xx,
 	&s3c_device_hsmmc2,
 	&s3c_device_hsmmc3,
 	&s3c_device_i2c0,
@@ -983,14 +898,39 @@ static struct i2c_board_info hdmiphy_info = {
 
 static void __init clickarm4412_gpio_init(void)
 {
+	/* Peripheral power enable (P3V3) */
+	gpio_request_one(EXYNOS4_GPA1(1), GPIOF_OUT_INIT_HIGH, "p3v3_en");
+
+	/* Power on/off button */
+	s3c_gpio_cfgpin(EXYNOS4X12_GPM3(7), S3C_GPIO_SFN(0xF));	/* VELO SIDE BUTTON TR POWERON */
+	s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_UP);
+	
+	/* TR/TL */
+	gpio_request_one(EXYNOS4_GPF2(5), GPIOF_IN, "TL");
+        s3c_gpio_cfgpin(EXYNOS4_GPF2(5), S3C_GPIO_INPUT );
+        s3c_gpio_setpull(EXYNOS4_GPF2(5), S3C_GPIO_PULL_UP);
+	gpio_free(EXYNOS4_GPF2(5));
+
+	/* BR/BL */
+        gpio_request_one(EXYNOS4_GPJ0(1), GPIOF_IN, "BR");
+        s3c_gpio_cfgpin(EXYNOS4_GPJ0(1), S3C_GPIO_INPUT );
+        s3c_gpio_setpull(EXYNOS4_GPJ0(1), S3C_GPIO_PULL_UP);
+        gpio_free(EXYNOS4_GPJ0(1));
+
+	gpio_request_one(EXYNOS4_GPJ1(1), GPIOF_IN, "BL");  //modificado
+        s3c_gpio_cfgpin(EXYNOS4_GPJ1(1), S3C_GPIO_INPUT );
+        s3c_gpio_setpull(EXYNOS4_GPJ1(1), S3C_GPIO_PULL_UP);
+        gpio_free(EXYNOS4_GPJ1(1));
+
 /*********************************************************************/
-/*				WIFI MODULE CONFIGURATION									 */
+/*				WIFI MDULE CONFIGURATION									 */
 /*********************************************************************/
 	/* WLAN_EN */	
 	gpio_request_one(EXYNOS4_GPJ1(4), GPIOF_OUT_INIT_LOW, "WLAN_EN");
         s3c_gpio_cfgpin(EXYNOS4_GPJ1(4), S3C_GPIO_OUTPUT );
         s3c_gpio_setpull(EXYNOS4_GPJ1(4), S3C_GPIO_PULL_NONE);
         gpio_free(EXYNOS4_GPJ1(4));
+
 	/* BT_EN */	
 	gpio_request_one(EXYNOS4_GPJ0(6), GPIOF_OUT_INIT_LOW, "BT_EN");
         s3c_gpio_cfgpin(EXYNOS4_GPJ0(6), S3C_GPIO_OUTPUT );
@@ -999,65 +939,49 @@ static void __init clickarm4412_gpio_init(void)
 
 	/* WLAN_IRQ */	
 	gpio_request_one(EXYNOS4_GPX0(1), GPIOF_IN, "WLAN_IRQ");
-    s3c_gpio_cfgpin(EXYNOS4_GPX0(1), S3C_GPIO_INPUT );
-    s3c_gpio_setpull(EXYNOS4_GPX0(1), S3C_GPIO_PULL_DOWN);
+    	s3c_gpio_cfgpin(EXYNOS4_GPX0(1), S3C_GPIO_INPUT );
+    	s3c_gpio_setpull(EXYNOS4_GPX0(1), S3C_GPIO_PULL_DOWN);
 	
 /*********************************************************************/
 /*				GPS CONFIGURATION									 */
 /*********************************************************************/
-	/* GPS PowerON/OFF */
-	gpio_request_one(EXYNOS4X12_GPM4(2), GPIOF_OUT_INIT_LOW, "GPS_ONOFF");
-		s3c_gpio_cfgpin(EXYNOS4X12_GPM4(2), S3C_GPIO_OUTPUT );
-		s3c_gpio_setpull(EXYNOS4X12_GPM4(2), S3C_GPIO_PULL_NONE);
-		gpio_free(EXYNOS4X12_GPM4(2));
+     /* GPS PowerON/OFF */
+    gpio_request_one(EXYNOS4X12_GPM4(2), GPIOF_OUT_INIT_LOW, "GPS_PON");
+        s3c_gpio_cfgpin(EXYNOS4X12_GPM4(2), S3C_GPIO_OUTPUT );
+        s3c_gpio_setpull(EXYNOS4X12_GPM4(2), S3C_GPIO_PULL_NONE);
+        gpio_free(EXYNOS4X12_GPM4(2));
 
-	/* GPS Reset */
-	gpio_request_one(EXYNOS4X12_GPM1(3), GPIOF_IN, "GPS_RESET");
-		s3c_gpio_cfgpin(EXYNOS4X12_GPM1(3), S3C_GPIO_INPUT );
-		s3c_gpio_setpull(EXYNOS4X12_GPM1(3), S3C_GPIO_PULL_NONE);
-		gpio_free(EXYNOS4X12_GPM1(3));
+        /* GPS Status */
+     gpio_request_one(EXYNOS4X12_GPM4(5), GPIOF_IN, "GPS_STATUS");
+           s3c_gpio_cfgpin(EXYNOS4X12_GPM4(5), S3C_GPIO_INPUT );
+           s3c_gpio_setpull(EXYNOS4X12_GPM4(5), S3C_GPIO_PULL_NONE);
+           gpio_free(EXYNOS4X12_GPM4(5));
 
-	/* GPS Status */
-	gpio_request_one(EXYNOS4X12_GPM4(5), GPIOF_IN, "GPS_STATUS");
-		s3c_gpio_cfgpin(EXYNOS4X12_GPM4(5), S3C_GPIO_INPUT );
-		s3c_gpio_setpull(EXYNOS4X12_GPM4(5), S3C_GPIO_PULL_NONE);
-		gpio_free(EXYNOS4X12_GPM4(5));
+           /* GPS Reset */
+     gpio_request_one(EXYNOS4X12_GPM1(3), GPIOF_IN, "GPS_RESET");
+            s3c_gpio_cfgpin(EXYNOS4X12_GPM1(3), S3C_GPIO_INPUT );   
+            s3c_gpio_setpull(EXYNOS4X12_GPM1(3), S3C_GPIO_PULL_NONE);
+            gpio_free(EXYNOS4X12_GPM1(3));
 
 /*********************************************************************/
 /*				GPRS CONFIGURATION									 */
 /*********************************************************************/
-//	/* GPRS PWRKEY*/
-//	gpio_request_one(EXYNOS4X12_GPM0(4), GPIOF_OUT_INIT_LOW, "GPRS_PWRKEY");
-//		s3c_gpio_cfgpin(EXYNOS4X12_GPM0(4), S3C_GPIO_OUTPUT );
-//		s3c_gpio_setpull(EXYNOS4X12_GPM0(4), S3C_GPIO_PULL_NONE);
-//		gpio_free(EXYNOS4X12_GPM0(4));
-//	/* GPRS PowerON/OFF */
-//	gpio_request_one(EXYNOS4X12_GPM1(1), GPIOF_OUT_INIT_LOW, "GPRS_PON");
-//		s3c_gpio_cfgpin(EXYNOS4X12_GPM1(1), S3C_GPIO_OUTPUT );
-//		s3c_gpio_setpull(EXYNOS4X12_GPM1(1), S3C_GPIO_PULL_NONE);
-//		gpio_free(EXYNOS4X12_GPM1(1));
-//	/* GPRS STATUS*/
-//	gpio_request_one(EXYNOS4X12_GPM1(6), GPIOF_IN, "GPRS_STATUS");
-//		s3c_gpio_cfgpin(EXYNOS4X12_GPM1(6), S3C_GPIO_INPUT );
-//		s3c_gpio_setpull(EXYNOS4X12_GPM1(6), S3C_GPIO_PULL_NONE);
-//		gpio_free(EXYNOS4X12_GPM1(6));
+        /* GPRS PowerON/OFF */
+     gpio_request_one(EXYNOS4X12_GPM1(1), GPIOF_OUT_INIT_LOW, "GPRS_PON");
+        s3c_gpio_cfgpin(EXYNOS4X12_GPM1(1), S3C_GPIO_OUTPUT );
+        s3c_gpio_setpull(EXYNOS4X12_GPM1(1), S3C_GPIO_PULL_NONE);
+        gpio_free(EXYNOS4X12_GPM1(1));
+        /* GPRS STATUS*/
+     gpio_request_one(EXYNOS4X12_GPM1(6), GPIOF_IN, "GPRS_STATUS");
+        s3c_gpio_cfgpin(EXYNOS4X12_GPM1(6), S3C_GPIO_INPUT );
+        s3c_gpio_setpull(EXYNOS4X12_GPM1(6), S3C_GPIO_PULL_NONE);
+        gpio_free(EXYNOS4X12_GPM1(6));
+                /* GPRS PWRKEY*/
+     gpio_request_one(EXYNOS4X12_GPM0(4), GPIOF_OUT_INIT_LOW, "GPRS_PWRKEY");
+        s3c_gpio_cfgpin(EXYNOS4X12_GPM0(4), S3C_GPIO_OUTPUT );
+        s3c_gpio_setpull(EXYNOS4X12_GPM0(4), S3C_GPIO_PULL_NONE);
+        gpio_free(EXYNOS4X12_GPM0(4));
 
-/*********************************************************************/
-/*				MAX44005 CONFIGURATION								 */
-/*********************************************************************/
-    gpio_request_one(EXYNOS4_GPX2(7), GPIOF_IN, "MAX44005_IRQ");
-        s3c_gpio_cfgpin(EXYNOS4_GPX2(7), S3C_GPIO_SFN(0xF));
-        s3c_gpio_setpull(EXYNOS4_GPX2(7), S3C_GPIO_PULL_NONE);
-        gpio_free(EXYNOS4_GPX2(7));
-
-
-/*********************************************************************/
-/*				BUTTONS CONFIGURATION								 */
-/*********************************************************************/
-	//s3c_gpio_setpull(EXYNOS4X12_GPM3(7), S3C_GPIO_PULL_UP);
-	//s3c_gpio_setpull(EXYNOS4_GPF2(5), S3C_GPIO_PULL_UP);
-	s3c_gpio_setpull(EXYNOS4_GPJ0(1), S3C_GPIO_PULL_UP);
-	//s3c_gpio_setpull(EXYNOS4_GPJ1(1), S3C_GPIO_PULL_UP);
 }
 
 static void clickarm4412_power_off(void)
@@ -1093,7 +1017,6 @@ static struct notifier_block clickarm4412_reboot_notifier_nb = {
 
 static void __init clickarm4412_machine_init(void)
 {
-	printk(KERN_INFO "EBM velo version: %s\n", velo_version);
 
 	clickarm4412_gpio_init();
 
@@ -1118,8 +1041,8 @@ static void __init clickarm4412_machine_init(void)
 	samsung_bl_set(&clickarm4412_bl_gpio_info, &clickarm4412_bl_data);
 	pwm_add_table(clickarm4412_pwm_lookup, ARRAY_SIZE(clickarm4412_pwm_lookup));
 /*SDIO_HCI CONFIGURATION ARRAY*/
-//	s3c_sdhci2_set_platdata(&clickarm4412_hsmmc2_pdata);
-//	s3c_sdhci3_set_platdata(&clickarm4412_hsmmc3_pdata);
+	s3c_sdhci2_set_platdata(&clickarm4412_hsmmc2_pdata);
+	s3c_sdhci3_set_platdata(&clickarm4412_hsmmc3_pdata);
 
 	exynos4_setup_dwmci_cfg_gpio(NULL, MMC_BUS_WIDTH_4);
 	exynos_dwmci_set_platdata(&clickarm4412_dwmci_pdata);
@@ -1149,16 +1072,17 @@ static void __init clickarm4412_machine_init(void)
 	s5p_device_fimd0.dev.platform_data = &drm_fimd_pdata;
 	exynos4_fimd0_gpio_setup_24bpp();
 #endif
-	init_button_irqs();
-
 	platform_add_devices(clickarm4412_devices, ARRAY_SIZE(clickarm4412_devices));
 
 	register_reboot_notifier(&clickarm4412_reboot_notifier_nb);
 
-	/*WIFI PLATFORM DATA*/
-	clickarm4412_wl12xx_wlan_data.irq = gpio_to_irq(EXYNOS4_GPX0(1));
-	printk("clickarm4412_wl12xx_wlan_data.irq: %d\n",clickarm4412_wl12xx_wlan_data.irq);
-	wl12xx_set_platform_data(&clickarm4412_wl12xx_wlan_data);
+	/* WIFI PLATFORM DATA
+	 * FIXME: when using backports compability, the platformdata is not set properly
+	 * and all the configuration is directly set in the driver. Should be changed 
+	 * so that the platform data is configured in this file	*/
+	//clickarm4412_wl12xx_wlan_data.irq = gpio_to_irq(EXYNOS4_GPX0(1));
+	//printk("clickarm4412_wl12xx_wlan_data.irq: %d\n",clickarm4412_wl12xx_wlan_data.irq);
+	//wl12xx_set_platform_data(&clickarm4412_wl12xx_wlan_data);
 
 }
 
@@ -1176,3 +1100,4 @@ MACHINE_START(CLICKARM4412, "ClickArm4412")
 	.restart	= exynos4_restart,
 	.reserve	= &clickarm4412_reserve,
 MACHINE_END
+

@@ -374,14 +374,14 @@ static struct i2c_board_info clickarm4412_i2c_devs4[] __initdata = {
 		.platform_data  = &ds278x_pdata,
 	},
 #endif
-#if defined(CONFIG_FAN54040)
-/**/
-	{
-		I2C_BOARD_INFO("fan54040", 0x6B),
-		.platform_data  = &tsc2007_info,
-		.irq		= VELO_FAN_INT,/*xeint8 // GPM3CON0 CHAGE STATUS // GPM3CON1 DISABLE CHARGE*/
-	},
-#endif
+// #if defined(CONFIG_FAN54040)
+// /* este chip ya no se usa */
+// 	{
+// 		I2C_BOARD_INFO("fan54040", 0x6B),
+// 		.platform_data  = &tsc2007_info,
+// 		.irq		= VELO_FAN_INT,/*xeint8 // GPM3CON0 CHAGE STATUS // GPM3CON1 DISABLE CHARGE*/
+// 	},
+// #endif
 #if defined(CONFIG_SENSOR_MPU9250)
 	{
 	     I2C_BOARD_INFO("mpu9250", 0x68),
@@ -405,51 +405,30 @@ static struct pwm_lookup clickarm4412_pwm_lookup[] = {
 	PWM_LOOKUP("s3c24xx-pwm.1", 0, "pwm-backlight.0", NULL),
 };
 /* END OF LCD Backlight data tps611xx PWM_platform_data*/
+
 /*Define VELO display with DRM */
 #if defined(CONFIG_LCD_T55149GD030J) && defined(CONFIG_DRM_EXYNOS_FIMD)
-	#if defined(CONFIG_LCD_TM037WDHT01)
-		static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
+	static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
 		.panel = {
 			.timing = {
-				.left_margin 	= 40,
-				.right_margin 	= 24,
-				.upper_margin 	= 7,
+				.left_margin 	= 9,
+				.right_margin 	= 9,
+				.upper_margin 	= 5,
 				.lower_margin 	= 5,
-				.hsync_len 	= 32,
-				.vsync_len 	= 5,
+				.hsync_len 	= 1,
+				.vsync_len 	= 1,
 				.xres 		= 480,
 				.yres 		= 640,
 			},
+			.width_mm = 39,
+			.height_mm = 65,
 		},
 		.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
-		.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | VIDCON1_INV_VCLK,
+		.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | 
+					  VIDCON1_INV_VCLK | VIDCON1_INV_VDEN,
 		.default_win 	= 0,
-		.bpp 		= 32,
+		.bpp 		= 24,
 	};
-
-	#else
-		static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
-			.panel = {
-				.timing = {
-					.left_margin 	= 9,
-					.right_margin 	= 9,
-					.upper_margin 	= 5,
-					.lower_margin 	= 5,
-					.hsync_len 	= 1,
-					.vsync_len 	= 1,
-					.xres 		= 240,
-					.yres 		= 400,
-				},
-				.width_mm = 39,
-				.height_mm = 65,
-			},
-			.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
-			.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | 
-						  VIDCON1_INV_VCLK | VIDCON1_INV_VDEN,
-			.default_win 	= 0,
-			.bpp 		= 24,
-		};
-	#endif
 
 	static void lcd_t55149gd030j_set_power(struct plat_lcd_data *pd,
 					   unsigned int power)
@@ -477,6 +456,55 @@ static struct pwm_lookup clickarm4412_pwm_lookup[] = {
 	};
 #endif
 /*END OF Define VELO display with DRM */
+
+/*Define aventura display with DRM */
+#if defined(CONFIG_LCD_TM037WDHT01) && defined(CONFIG_DRM_EXYNOS_FIMD)
+	static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
+		.panel = {
+			.timing = {
+				.left_margin 	= 40,
+				.right_margin 	= 24,
+				.upper_margin 	= 7,
+				.lower_margin 	= 5,
+				.hsync_len 	= 32,
+				.vsync_len 	= 5,
+				.xres 		= 480,
+				.yres 		= 640,
+			},
+		},
+		.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
+		.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC | VIDCON1_INV_VCLK,
+		.default_win 	= 0,
+		.bpp 		= 32,
+	};
+
+	static void lcd_tm037wdht01_set_power(struct plat_lcd_data *pd,
+					   unsigned int power)
+	{
+		if (power) {
+			gpio_set_value(EXYNOS4X12_GPM1(5),1);
+		} else {
+			gpio_set_value(EXYNOS4X12_GPM1(5),0);
+		}
+		gpio_free(EXYNOS4X12_GPM1(5));
+
+	}
+
+	static struct plat_lcd_data clickarm4412_lcd_tm037wdht01_data = {
+		.set_power	= lcd_tm037wdht01_set_power,
+		
+	};
+
+	static struct platform_device clickarm4412_lcd_tm037wdht01 = {
+		.name	= "platform-lcd",
+		.dev	= {
+			.parent		= &s5p_device_fimd0.dev,
+			.platform_data	= &clickarm4412_lcd_tm037wdht01_data,
+		},
+	};
+#endif
+/*END OF Define AVENTURA display with DRM */
+
 
 /* GPIO KEYS KEYBOARD*/
 static struct gpio_keys_button clickarm4412_gpio_keys_tables[] = {
@@ -709,7 +737,7 @@ static struct platform_device clickarm_fan = {
 #endif
 
 
-#if defined(CONFIG_LCD_T55149GD030J)
+#if defined(CONFIG_LCD_T55149GD030J) || defined(CONFIG_LCD_TM037WDHT01)
 
 static int lcd_power_on(struct lcd_device *ld, int enable)
 {	
@@ -887,6 +915,15 @@ static struct platform_device clickarm_lcd_spi = {
 };
 #endif
 
+#if defined(CONFIG_LCD_TM037WDHT01)
+static struct lcd_platform_data tm037wdht01_platform_data = {
+	.reset			= reset_lcd,
+	.power_on		= lcd_power_on,
+	.lcd_enabled		= 0,
+	.reset_delay		= 100,	/* 100ms */
+};
+#endif
+
 static struct platform_device *clickarm4412_devices[] __initdata = {
 	&tps611xx,
 	&s3c_device_hsmmc2,
@@ -929,6 +966,9 @@ static struct platform_device *clickarm4412_devices[] __initdata = {
 #if defined(CONFIG_LCD_T55149GD030J) && !defined(CONFIG_CLICKARM_OTHERS) && defined(CONFIG_DRM_EXYNOS_FIMD)
 	&clickarm4412_lcd_t55149gd030j,
 #endif
+#if defined(CONFIG_LCD_TM037WDHT01) && !defined(CONFIG_CLICKARM_OTHERS) && defined(CONFIG_DRM_EXYNOS_FIMD)
+	&clickarm4412_lcd_tm037wdht01,
+#endif
 	&clickarm4412_gpio_keys,
 	&samsung_asoc_idma,
 #if defined(CONFIG_SND_SOC_HKDK_MAX98090)
@@ -942,7 +982,7 @@ static struct platform_device *clickarm4412_devices[] __initdata = {
 	&clickarm_pwm_bl,
 #endif
 
-#if defined(CONFIG_LCD_T55149GD030J)
+#if defined(CONFIG_LCD_T55149GD030J) 
 	&clickarm_lcd_spi,
 #else
 	&s3c64xx_device_spi1,
@@ -991,6 +1031,7 @@ static void __init clickarm4412_gpio_init(void)
         s3c_gpio_cfgpin(EXYNOS4_GPJ1(4), S3C_GPIO_OUTPUT );
         s3c_gpio_setpull(EXYNOS4_GPJ1(4), S3C_GPIO_PULL_NONE);
         gpio_free(EXYNOS4_GPJ1(4));
+
 	/* BT_EN */	
 	gpio_request_one(EXYNOS4_GPJ0(6), GPIOF_OUT_INIT_LOW, "BT_EN");
         s3c_gpio_cfgpin(EXYNOS4_GPJ0(6), S3C_GPIO_OUTPUT );
@@ -999,8 +1040,8 @@ static void __init clickarm4412_gpio_init(void)
 
 	/* WLAN_IRQ */	
 	gpio_request_one(EXYNOS4_GPX0(1), GPIOF_IN, "WLAN_IRQ");
-    s3c_gpio_cfgpin(EXYNOS4_GPX0(1), S3C_GPIO_INPUT );
-    s3c_gpio_setpull(EXYNOS4_GPX0(1), S3C_GPIO_PULL_DOWN);
+    	s3c_gpio_cfgpin(EXYNOS4_GPX0(1), S3C_GPIO_INPUT );
+    	s3c_gpio_setpull(EXYNOS4_GPX0(1), S3C_GPIO_PULL_DOWN);
 	
 /*********************************************************************/
 /*				GPS CONFIGURATION									 */
@@ -1133,7 +1174,9 @@ static void __init clickarm4412_machine_init(void)
 #endif
 
 	//s3c64xx_spi1_set_platdata(NULL, 0, 1);
+#if defined(CONFIG_LCD_T55149GD030J)
 	spi_register_board_info(spi1_board_info, ARRAY_SIZE(spi1_board_info));
+#endif
 
 #if defined(CONFIG_S5P_DEV_TV)
 	s5p_i2c_hdmiphy_set_platdata(NULL);
@@ -1145,7 +1188,7 @@ static void __init clickarm4412_machine_init(void)
 	i2c_register_board_info(8, &hdmiphy_info, 1);
 #endif
 
-#if defined(CONFIG_LCD_T55149GD030J) && !defined(CONFIG_CLICKARM_OTHERS) && defined(CONFIG_DRM_EXYNOS_FIMD)
+#if defined(CONFIG_DRM_EXYNOS_FIMD)
 	s5p_device_fimd0.dev.platform_data = &drm_fimd_pdata;
 	exynos4_fimd0_gpio_setup_24bpp();
 #endif
@@ -1155,10 +1198,13 @@ static void __init clickarm4412_machine_init(void)
 
 	register_reboot_notifier(&clickarm4412_reboot_notifier_nb);
 
-	/*WIFI PLATFORM DATA*/
-	clickarm4412_wl12xx_wlan_data.irq = gpio_to_irq(EXYNOS4_GPX0(1));
-	printk("clickarm4412_wl12xx_wlan_data.irq: %d\n",clickarm4412_wl12xx_wlan_data.irq);
-	wl12xx_set_platform_data(&clickarm4412_wl12xx_wlan_data);
+	/* WIFI PLATFORM DATA
+	 * FIXME: when using backports compability, the platformdata is not set properly
+	 * and all the configuration is directly set in the driver. Should be changed 
+	 * so that the platform data is configured in this file	*/
+	//clickarm4412_wl12xx_wlan_data.irq = gpio_to_irq(EXYNOS4_GPX0(1));
+	//printk("clickarm4412_wl12xx_wlan_data.irq: %d\n",clickarm4412_wl12xx_wlan_data.irq);
+	//wl12xx_set_platform_data(&clickarm4412_wl12xx_wlan_data);
 
 }
 
